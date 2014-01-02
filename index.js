@@ -20,6 +20,9 @@ exports.start = function(config) {
 
     if (config.prefrontal) {
       var res = config.prefrontal(browser_request, browser_response);
+      if (res.content) {
+        sendLocalContent(browser_request, browser_response, res.content);
+      }
       if (!res.continue) { 
         return;
       }
