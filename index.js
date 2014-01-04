@@ -30,6 +30,7 @@ exports.start = function(config) {
     }
       
     // Retrieve from cache if configured & present
+    // FIXME merge with prefrontal?
     if (config.pageCache && config.doCache && !isSystemRequest && config.pageCache.isCached(browser_request.url)) {
       try {
         config.pageCache.get(browser_request.url, function(headers, pageBuffer) {
@@ -106,9 +107,9 @@ exports.start = function(config) {
         if (!isSystemRequest) {  
           var saveHeaders = {},
           // FIXME
-            uri = browser_request.url.toString().replace(/#.*$/, ''), 
-            contentType = browser_request.proxy_received.headers['content-type'],
-            referer = browser_request.headers.referer;
+          uri = browser_request.url.toString().replace(/#.*$/, ''), 
+          contentType = browser_request.proxy_received.headers['content-type'],
+          referer = browser_request.headers.referer;
 
           saveHeaders.statusCode = browser_request.proxy_received.statusCode;
           saveHeaders.headers = browser_request.proxy_received.headers;
@@ -117,7 +118,7 @@ exports.start = function(config) {
             try {
               config.consolidate.process(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
             } catch (e) {
-              console.log('cache EXCEPTION', e);
+              console.log('consolidate EXCEPTION', e);
             }
           }
         }
