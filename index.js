@@ -2,12 +2,12 @@ var http = require('http');
 var url  = require('url');
 var zlib = require('zlib');
 
-// Cortex proxy
+// filter-proxy 
 //
-// prefrontal makes the first decisions on request, it may end the request or pass on shouldProcess details.
-// consolidate is for caching/indexing actions.
+// onRequest makes the first decisions on request, it may end the request or pass on shouldProcess details.
+// onRetrieve is for caching/indexing actions.
 // processor is where content changes can be made.
-// editPost to edit post requests before they're sent to an origin
+// onPost to edit post requests before they're sent to an origin
 
 
 exports.start = function(config) {
@@ -92,16 +92,13 @@ exports.start = function(config) {
       var pageBuffer = '';
 
       proxy_received.on('error', function(err, data) {
-        console.log('ERROR', pageBuffer, browser_request.url, proxy_received.headers);
+        console.log('filter-proxy request error', err, pageBuffer, browser_request.url, proxy_received.headers);
         browser_response.write('proxy received an error' + err + ";"+ JSON.stringify(proxy_received.headers, null, 4)+"\n\n::"+data+'::', browser_request.encoding);
         browser_response.end();
-      });
-      proxy_received.on('data', function(chunk) {
+      }).on('data', function(chunk) {
         // FIXME
         pageBuffer += chunk.toString(browser_request.encoding);
-      });
-
-      proxy_received.on('end', function() {
+      }).on('end', function() {
         // cache and index everything for analysis
         if (!isSystemRequest) {  
           var saveHeaders = {},
@@ -132,15 +129,14 @@ exports.start = function(config) {
         }
       });
 
-    }).on('error' , function(e){
-      }).on('close' , function() {
-      if (proxy_request ) {
-        proxy_request.end(); 
-      }
+    }).on('error' , function(e) {
+      console.log('filter-proxy origin requst error', e);
     }).on('end' , function() {
       console.log('sent post data');
-        proxy_request.end(); 
-      });
+      proxy_request.end(); 
+    }).on('close' , function() {
+      proxy_request.end(); 
+    });
 
     var postData = '';
     browser_request.on('data', function(chunk) {
@@ -150,13 +146,13 @@ exports.start = function(config) {
         request.connection.destroy();
       }
       postData += chunk;
-    });
-    browser_request.on('end', function() {
+    }).on('end', function() {
       proxy_request.write(config.editPost ? config.editPost.editPost(browser_request, postData) : postData);
       proxy_request.end(); 
-    });
-    browser_request.on('close', function() {
+    }).on('close', function() {
       //proxy_request.end(); 
+    }).on('error', function(error) {
+      console.log('filter-proxy post error', error);
     });
   }).listen(
     config.PROXY_PORT || 8089
@@ -187,7 +183,7 @@ exports.start = function(config) {
   }
 
   function sendPage(content, browser_request, browser_response) {
-    var via = 'cortexProxy';
+    var via = 'filter-proxy';
     if (browser_request.wasCached) {
       via += "; cached";
     } else {
