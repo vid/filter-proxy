@@ -9,6 +9,7 @@ var zlib = require('zlib');
 // processor is where content changes can be made.
 // onPost to edit post requests before they're sent to an origin
 
+// FIXME don't use global debug
 
 exports.start = function(config) {
 
@@ -18,8 +19,8 @@ exports.start = function(config) {
       path = url.parse(browser_request.url).pathname,
       isSystemRequest = false;
 
-    if (config.prefrontal) {
-      var res = config.prefrontal(browser_request, browser_response);
+    if (config.onRequest) {
+      var res = config.onRequest(browser_request, browser_response);
       if (res.content) {
         sendLocalContent(browser_request, browser_response, res.content);
       }
@@ -46,11 +47,11 @@ exports.start = function(config) {
         return; 
         // fall through to uncached
       } catch (e) { 
-        console.log('doCache failed', e);
+        GLOBAL.debug('doCache failed', e);
       }
     }
     
-    var proxy_options = { headers : browser_request.headers, path : request_url.path, method : browser_request.method, host : request_url.hostname, port : request_url.port || 80, encoding : null};
+    var proxy_options = { encoding: null, headers : browser_request.headers, path : request_url.path, method : browser_request.method, host : request_url.hostname, port : request_url.port || 80};
 
     // avoid gzip
     delete proxy_options.headers['accept-encoding']; 
@@ -68,7 +69,7 @@ exports.start = function(config) {
     }
 
     // request from origin
-    var proxy_request = http.request(proxy_options , function(proxy_received) {
+    var proxy_request = http.request(proxy_options, function(proxy_received) {
       // for convenient passing around
       browser_request.proxy_received = proxy_received;  
       var gzipped = proxy_received.headers['content-encoding'] === 'gzip';
@@ -85,14 +86,19 @@ exports.start = function(config) {
       } 
 
       if (gzipped) {
-        var gunzip = zlib.createGunzip();
+        var gunzip = zlib.createUnzip();
         proxy_received.pipe(gunzip);
-        console.log('GZIPPED!');
+        browser_request.encoding = 'binary';
+        GLOBAL.debug('GZIPPED!');
+// FIXME better decoding
+        gunzip.on('error', function(err, data) {
+          proxy_received.emit('error', err);
+        });
       }
       var pageBuffer = '';
 
       proxy_received.on('error', function(err, data) {
-        console.log('filter-proxy request error', err, pageBuffer, browser_request.url, proxy_received.headers);
+        GLOBAL.debug('filter-proxy request error', err, pageBuffer, browser_request.url, proxy_received.headers);
         browser_response.write('proxy received an error' + err + ";"+ JSON.stringify(proxy_received.headers, null, 4)+"\n\n::"+data+'::', browser_request.encoding);
         browser_response.end();
       }).on('data', function(chunk) {
@@ -106,18 +112,19 @@ exports.start = function(config) {
             uri = browser_request.url.toString().replace(/#.*$/, ''), 
             contentType = browser_request.proxy_received.headers['content-type'],
             referer = browser_request.headers.referer;
+// FIXME
             if (!contentType) {
-              console.log('WTF', browser_request.proxy_received.headers);
+              GLOBAL.debug('WTF', browser_request.proxy_received.headers);
             }
 
           saveHeaders.statusCode = browser_request.proxy_received.statusCode;
           saveHeaders.headers = browser_request.proxy_received.headers;
 
-          if (config.consolidate) {
+          if (config.onRetrieve) {
             try {
-              config.consolidate.process(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
+              config.onRetrieve.process(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
             } catch (e) {
-              console.log('cache EXCEPTION', e);
+              GLOBAL.debug('cache EXCEPTION', e);
             }
           }
         }
@@ -130,9 +137,9 @@ exports.start = function(config) {
       });
 
     }).on('error' , function(e) {
-      console.log('filter-proxy origin requst error', e);
+      GLOBAL.debug('filter-proxy origin requst error', e);
     }).on('end' , function() {
-      console.log('sent post data');
+      GLOBAL.debug('sent post data');
       proxy_request.end(); 
     }).on('close' , function() {
       proxy_request.end(); 
@@ -152,12 +159,12 @@ exports.start = function(config) {
     }).on('close', function() {
       //proxy_request.end(); 
     }).on('error', function(error) {
-      console.log('filter-proxy post error', error);
+      GLOBAL.debug('filter-proxy post error', error);
     });
   }).listen(
     config.PROXY_PORT || 8089
   ).on('error',  function(e) {
-    console.log('got server error' + e.message ); 
+    GLOBAL.debug('got server error' + e.message ); 
   }); 
 
   var mimeTypes = {
