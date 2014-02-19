@@ -1,7 +1,7 @@
 {
   "name": "filter-proxy",
   "id": "filter-proxy",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "filter-proxy.",
   "dependencies": {
   },
