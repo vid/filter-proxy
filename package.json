@@ -1,17 +1,16 @@
 {
   "name": "filter-proxy",
   "id": "filter-proxy",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "filter-proxy.",
   "dependencies": {
   },
-  "main": "Gruntfile.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/Vid/filter-proxy"
   },
   "author": "David H. Mason",
-  "license": "n/a",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Vid/filter-proxy/issues"
   }
