@@ -10,8 +10,11 @@ var zlib = require('zlib');
 // onPost to edit post requests before they're sent to an origin
 
 // FIXME don't use global debug
+//
+var config;
 
 exports.start = function(config) {
+  this.config = config;
 
 // the first layer, browser_request
   var server = http.createServer(function(browser_request, browser_response) {
@@ -190,6 +193,9 @@ exports.start = function(config) {
   }
 
   function sendPage(content, browser_request, browser_response) {
+    if (config.inject) {
+      content = config.inject(content);
+    }
     var via = 'filter-proxy';
     if (browser_request.wasCached) {
       via += "; cached";
