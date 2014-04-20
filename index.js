@@ -35,23 +35,19 @@ exports.start = function(config) {
       
     // Retrieve from cache if configured & present
     if (config.pageCache && config.doCache && !isSystemRequest && config.pageCache.isCached(browser_request.url)) {
-      try {
-        config.pageCache.get(browser_request.url, function(headers, pageBuffer) {
-          browser_request.proxy_received = headers;
-          browser_request.is_html = browser_request.proxy_received.headers['content-type'] && browser_request.proxy_received.headers['content-type'].indexOf('text\/html') > -1;
+      config.pageCache.get(browser_request.url, function(headers, pageBuffer) {
+        browser_request.proxy_received = headers;
+        browser_request.is_html = browser_request.proxy_received.headers['content-type'] && browser_request.proxy_received.headers['content-type'].indexOf('text\/html') > -1;
 
-        // process cached content
-          if (config.processor) {
-            config.processor.process(pageBuffer, browser_request, browser_response, sendPage);
-          } else {
-            sendPage(pageBuffer, browser_request, browser_response);
-          }
-        });
-        return; 
-        // fall through to uncached
-      } catch (e) { 
-        GLOBAL.debug('doCache failed', e);
-      }
+      // process cached content
+        if (config.processor) {
+          config.processor.process(pageBuffer, browser_request, browser_response, sendPage);
+        } else {
+          sendPage(pageBuffer, browser_request, browser_response);
+        }
+      });
+      return; 
+      // fall through to uncached
     }
     
     var proxy_options = { encoding: null, headers : browser_request.headers, path : request_url.path, method : browser_request.method, host : request_url.hostname, port : request_url.port || 80};
@@ -124,11 +120,7 @@ exports.start = function(config) {
           saveHeaders.headers = browser_request.proxy_received.headers;
 
           if (config.onRetrieve) {
-            try {
-              config.onRetrieve.process(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
-            } catch (e) {
-              GLOBAL.debug('cache EXCEPTION', e);
-            }
+            config.onRetrieve.process(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
           }
         }
         // process uncached content
