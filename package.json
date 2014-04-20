@@ -1,10 +1,9 @@
 {
   "name": "filter-proxy",
   "id": "filter-proxy",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "filter-proxy.",
-  "dependencies": {
-  },
+  "dependencies": {},
   "repository": {
     "type": "git",
     "url": "https://github.com/Vid/filter-proxy"
