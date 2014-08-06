@@ -1,23 +1,29 @@
-var http = require('http');
-var url  = require('url');
-var zlib = require('zlib');
-
-// filter-proxy 
+// filter-proxy
 //
 // onRequest makes the first decisions on request, it may end the request or pass on shouldProcess details.
 // onRetrieve is for caching/indexing actions.
 // processor is where content changes can be made.
 // onPost to edit post requests before they're sent to an origin
+/* jshint node: true */
+'use strict';
 
 // FIXME don't use global debug
 // FIXME problem with binary content
 //
-var config;
+
+var http = require('http'), url  = require('url'), zlib = require('zlib');
+
+var mimeTypes = {
+  js : 'application/x-javascript',
+  gif : 'image/gif',
+  png : 'image/png',
+  jpg : 'image/jpeg',
+  css : 'text/css',
+  html : 'text/html'
+};
 
 exports.start = function(config) {
-  this.config = config;
-
-// the first layer, browser_request
+// The first layer, browser_request.
   var server = http.createServer(function(browser_request, browser_response) {
     var request_url = url.parse(browser_request.url),
       path = url.parse(browser_request.url).pathname,
@@ -28,12 +34,12 @@ exports.start = function(config) {
       if (res.content) {
         sendLocalContent(browser_request, browser_response, res.content);
       }
-      if (!res.continue) { 
+      if (!res.continue) {
         return;
       }
       isSystemRequest = res.isSystemRequest;
     }
-      
+
     // Retrieve from cache if configured & present
     if (config.pageCache && config.doCache && !isSystemRequest && config.pageCache.isCached(browser_request.url)) {
       config.pageCache.get(browser_request.url, function(err, headers, pageBuffer) {
@@ -49,7 +55,7 @@ exports.start = function(config) {
           } else {
             sendPage(pageBuffer, browser_request, browser_response);
           }
-          return; 
+          return;
         }
       });
     } else {
@@ -60,9 +66,9 @@ exports.start = function(config) {
       var proxy_options = { encoding: null, headers : browser_request.headers, path : request_url.path, method : browser_request.method, host : request_url.hostname, port : request_url.port || 80};
 
       // avoid gzip
-      delete proxy_options.headers['accept-encoding']; 
+      delete proxy_options.headers['accept-encoding'];
       // FIXME
-      delete proxy_options.headers['if-modified-since']; 
+      delete proxy_options.headers['if-modified-since'];
 
       // Handle reverse proxy routing
       if (config.reverseProxyRoutes) {
@@ -77,19 +83,19 @@ exports.start = function(config) {
       // request from origin
       var proxy_request = http.request(proxy_options, function(proxy_received) {
         // for convenient passing around
-        browser_request.proxy_received = proxy_received;  
+        browser_request.proxy_received = proxy_received;
         var gzipped = proxy_received.headers['content-encoding'] === 'gzip';
-        var content_type =  proxy_received.headers['content-type'] || "" ; 
+        var content_type =  proxy_received.headers['content-type'] || "" ;
         browser_request.is_html = content_type.indexOf('text\/html') > -1;
         if (browser_request.url.match(/\.(ico|xml|css|js|jpg|gif|png)$/i) ){
-          browser_request.is_html = 0; 
-        }  
+          browser_request.is_html = 0;
+        }
         browser_request.encoding = 'binary';
         if (browser_request.is_html) {
           // FIXME
-          browser_request.encoding = 'UTF-8'; 
+          browser_request.encoding = 'UTF-8';
           proxy_received.setEncoding(browser_request.encoding);
-        } 
+        }
 
         if (gzipped) {
           var gunzip = zlib.createUnzip();
@@ -112,10 +118,10 @@ exports.start = function(config) {
           pageBuffer += chunk.toString(browser_request.encoding);
         }).on('end', function() {
           // cache and index everything for analysis
-          if (!isSystemRequest) {  
+          if (!isSystemRequest) {
             var saveHeaders = {},
             // FIXME
-              uri = browser_request.url.toString().replace(/#.*$/, ''), 
+              uri = browser_request.url.toString().replace(/#.*$/, ''),
               contentType = browser_request.proxy_received.headers['content-type'],
               referer = browser_request.headers.referer;
   // FIXME
@@ -127,12 +133,12 @@ exports.start = function(config) {
             saveHeaders.headers = browser_request.proxy_received.headers;
 
             if (config.onRetrieve) {
-              config.onRetrieve.process(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
+              config.onRetrieve(uri, referer, browser_request.is_html, pageBuffer, contentType, saveHeaders, browser_request);
             }
           }
           // process uncached content
           if (config.processor) {
-            config.processor.process(pageBuffer, browser_request, browser_response, sendPage);
+            config.processor(pageBuffer, browser_request, browser_response, sendPage);
           } else {
             sendPage(pageBuffer, browser_request, browser_response);
           }
@@ -142,9 +148,9 @@ exports.start = function(config) {
         GLOBAL.debug('filter-proxy origin requst error', e);
       }).on('end' , function() {
         GLOBAL.debug('sent post data');
-        proxy_request.end(); 
+        proxy_request.end();
       }).on('close' , function() {
-        proxy_request.end(); 
+        proxy_request.end();
       });
 
       var postData = '';
@@ -152,14 +158,14 @@ exports.start = function(config) {
   //      proxy_request.write(chunk);
         if (postData.length > 1e6) {
           // flood attack or faulty client, nuke request
-          request.connection.destroy();
+          browser_request.connection.destroy();
         }
         postData += chunk;
       }).on('end', function() {
         proxy_request.write(config.editPost ? config.editPost.editPost(browser_request, postData) : postData);
-        proxy_request.end(); 
+        proxy_request.end();
       }).on('close', function() {
-        //proxy_request.end(); 
+        //proxy_request.end();
       }).on('error', function(error) {
         GLOBAL.debug('filter-proxy post error', error);
       });
@@ -167,26 +173,17 @@ exports.start = function(config) {
   }).listen(
     config.PROXY_PORT || 8089
   ).on('error',  function(e) {
-    GLOBAL.debug('got server error' + e.message ); 
-  }); 
-
-  var mimeTypes = {
-    js : 'application/x-javascript',
-    gif : 'image/gif',
-    png : 'image/png',
-    jpg : 'image/jpeg',
-    css : 'text/css',
-    html : 'text/html'
-  };
+    GLOBAL.debug('got server error' + e.message );
+  });
 
   function sendLocalContent(browser_request, browser_response, content, type) {
     browser_request.wasCached = true;
     browser_request.proxy_received = {};
-    browser_request.proxy_received.headers = browser_request.proxy_received.headers || 
+    browser_request.proxy_received.headers = browser_request.proxy_received.headers ||
       { Expires: '1 Apr 1070 00:00:00 GMT', Pragma : 'no-cache', 'Cache-Control' : 'no-cache, no-store, max-age=0, must-revalidate'};
 
     var mimeType = mimeTypes[type] || 'text/html';
-    
+
     browser_request.proxy_received.headers['Content-Type'] = mimeType;
     browser_request.proxy_received.statusCode = 200;
     sendPage(content, browser_request, browser_response);
@@ -194,18 +191,17 @@ exports.start = function(config) {
 
   function sendPage(content, browser_request, browser_response) {
     if (config.inject) {
-      content = config.inject(content);
+      content = config.inject(content, browser_request, browser_response);
     }
-    var via = 'filter-proxy';
+    var via = 'FILTER-proxy';
     if (browser_request.wasCached) {
       via += "; cached";
     } else {
       // gzip
-      delete browser_request.proxy_received.headers['content-encoding']; 
+      delete browser_request.proxy_received.headers['content-encoding'];
     }
 
     browser_request.proxy_received.headers['content-length'] = content.length;
-    browser_request.proxy_received.headers['Access-Control-Allow-Origin'] = '*';
     browser_request.proxy_received.headers.Via = via;
     browser_response.writeHead(browser_request.proxy_received.statusCode, browser_request.proxy_received.headers);
 
@@ -213,4 +209,3 @@ exports.start = function(config) {
     browser_response.end();
   }
 };
-
