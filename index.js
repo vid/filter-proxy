@@ -32,7 +32,7 @@ exports.start = function(config) {
     if (config.onRequest) {
       var res = config.onRequest(browser_request, browser_response);
       if (res.content) {
-        sendLocalContent(browser_request, browser_response, res.content);
+        sendLocalContent(browser_request, browser_response, res.content, res.type);
       }
       if (!res.continue) {
         return;
